@@ -110,7 +110,7 @@ impl ParsedCfg {
     }
 
     pub fn can_write(&self, path: &PathBuf) -> Result<bool,std::io::Error> {
-        let cannon = path.canonicalize()?;
+        let cannon = resolve_path(path)?;
         for i in self.never.iter() {
             if i.starts_with(&cannon) {
                 return Ok(false)
