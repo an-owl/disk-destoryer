@@ -4,6 +4,12 @@ use std::sync::atomic::{AtomicBool, AtomicUsize};
 
 static STATE: GlobalState = GlobalState::new();
 
+// rc's
+// 0x0?: See Options::new
+// 0x1?: FS problem
+// 0x2?: IO problem see read_write
+// 0x3?: Config Error
+
 mod io;
 mod read_write;
 
@@ -20,10 +26,7 @@ fn main() {
     drop(write_thread.join());
 }
 
-// rc's
-// 0x0?: See Options::new
-// 0x1?: FS problem
-// 0x2?: IO problem see read_write
+
 
 #[derive(Debug, Clone)]
 pub struct Options {
