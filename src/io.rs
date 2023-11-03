@@ -37,10 +37,23 @@ pub enum IoMode {
 }
 
 impl Target {
-    pub fn open(&self, mode: IoMode) -> std::fs::File {
+    pub fn open(&self, mode: IoMode, opts: &super::Options) -> std::fs::File {
+
         match self {
             Target::Path(p) => {
                 if mode == IoMode::Write {
+                    if !opts.cfg.can_write(p).unwrap_or_else(|e| super::handle_err(e,&format!("Failed to open {}", p.display()),0x32)) {
+                        eprintln!("Config prevents writing to {}",p.display());
+                        std::process::exit(0x33);
+                    }
+
+                    // If creating p is allowed then passes. If can_create returns Err then
+                    if !p.exists() {
+                        if let Ok(false) = opts.cfg.can_create(p) {
+                            eprintln!("Config prevents creating {}", p.display());
+                        }
+                    }
+
                     let mut o = std::fs::OpenOptions::new();
                     o.write(true).create(true);
                     o.open(p).unwrap_or_else(|e| super::handle_err(e, &format!("in file {self:?}"),0x10))

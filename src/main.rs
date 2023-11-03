@@ -2,6 +2,7 @@ use std::env;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 
+const DEFAULT_CONFIG: &str = "/etc/disk-destroyer.conf";
 static STATE: GlobalState = GlobalState::new();
 
 // rc's
@@ -12,6 +13,7 @@ static STATE: GlobalState = GlobalState::new();
 
 mod io;
 mod read_write;
+mod config;
 
 fn main() {
     let o = Options::new();
@@ -38,6 +40,7 @@ pub struct Options {
     o_skip: Option<usize>,
     i_skip: Option<usize>,
     status: Status,
+    cfg: config::ParsedCfg
 }
 
 struct GlobalState {
@@ -77,9 +80,10 @@ impl Options {
         opts.opt("", "seek","skip N obs-sized output blocks. Note: oseek will not work", "N",HasArg::Yes, Occur::Optional);
         opts.opt("", "skip", "skip N ibs-sized input blocks. Nose iseek does not work", "N", HasArg::Yes, Occur::Optional);
         opts.opt("", "status", "The LEVEL of information to print to stderr; 'none' suppresses everything but error messages, 'noxfer' suppresses the final transfer statistics, 'progress' shows periodic transfer statistics","LEVEL", HasArg::Yes, Occur::Optional);
+        opts.opt("","no-cfg", "Disables parsing the default config", "", HasArg::No, Occur::Optional);
 
         // disk destroyer options
-        opts.opt("","cfg", "points to the config file to b used","PATH", HasArg::Yes,Occur::Optional);
+        opts.opt("","cfg", "points to the config file to b used","PATH", HasArg::Yes,Occur::Multi);
         opts.opt("","help", "Prints a useful help message","",HasArg::No,Occur::Optional);
 
         let matches = match opts.parse(env::args()) {
@@ -105,6 +109,7 @@ impl Options {
         let mut o_bs = None;
         let mut bs_spec = 0; // 0 for not configured yet. 1 for legacy opt. 2 for long opt.
 
+        // todo prepend '--' and re-parse these to remove this section
         for arg in matches.free.iter().skip(1) {
             if arg.starts_with("if") {
                 if i_f.is_none() {
@@ -250,6 +255,19 @@ impl Options {
             status = Some(o) // most of these require args. If they require one but dont have one opts.parse will return err
         }
 
+        let mut cfg = config::ParsedCfg::new();
+
+        // load default config if allowed
+        if !matches.opt_present("no-cfg") {
+            let def = PathBuf::from(DEFAULT_CONFIG);
+            if def.exists() {
+                cfg.load(def)
+            }
+        }
+        for i in matches.opt_strs("cfg") {
+            cfg.load(i.into())
+        }
+
         Self {
             o_f: o_f.map(|s| io::Target::Path(PathBuf::from(s))).unwrap_or(io::Target::StdOut),
             i_f: i_f.map(|s| io::Target::Path(PathBuf::from(s))).unwrap_or(io::Target::StdIn),
@@ -270,6 +288,7 @@ impl Options {
             status: Status::try_from(&*status.unwrap_or("none".to_string())).unwrap_or_else(|_| {
                 eprintln!("Failed to parse argument for 'status'\nExpected 'none', 'noxfer' or 'progress'");
                 std::process::exit(3); }),
+            cfg,
         }
     }
 

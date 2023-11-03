@@ -11,7 +11,7 @@ fn new_buff(len: usize) -> Vec<u8> {
 }
 
 pub fn dd_read(opts: Options, tx: std::sync::mpsc::Sender<Box<[u8]>>) {
-    let mut f = opts.i_f.open(IoMode::Read);
+    let mut f = opts.i_f.open(IoMode::Read,&opts);
     let mut queue = super::IoQueue::new(opts.o_bs,tx);
 
     if let Some(skip) = opts.i_skip {
@@ -46,7 +46,7 @@ pub fn dd_read(opts: Options, tx: std::sync::mpsc::Sender<Box<[u8]>>) {
 
 
 pub fn dd_write(opts: Options, rx: std::sync::mpsc::Receiver<Box<[u8]>>) {
-    let mut f = opts.o_f.open(IoMode::Write);
+    let mut f = opts.o_f.open(IoMode::Write,&opts);
     if let Some(skip) = opts.o_skip {
         f.seek(SeekFrom::Start(skip as u64 * opts.o_bs as u64)).unwrap_or_else(|e| super::handle_err(e,&format!("in file {:?}",opts.o_f), 0x20));
     }
