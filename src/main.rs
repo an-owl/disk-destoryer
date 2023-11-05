@@ -1,4 +1,5 @@
 use std::env;
+use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 
@@ -7,6 +8,7 @@ static STATE: GlobalState = GlobalState::new();
 
 // rc's
 // 0x0?: See Options::new
+// 0x06: received int
 // 0x1?: FS problem
 // 0x2?: IO problem see read_write
 // 0x3?: Config Error
@@ -19,16 +21,32 @@ fn main() {
     let o = Options::new();
     let (tx,rx) = std::sync::mpsc::channel();
 
+    unsafe { signal_hook::low_level::register(signal_hook::consts::SIGINT, sigint).expect("Error installing interrupt handler") };
+    unsafe { signal_hook::low_level::register(signal_hook::consts::SIGUSR1, sigusr1).expect("Error installing interrupt handler") };
+
+    STATE.cfg_time();
+
     let write_thread = {
         let options_send = o.clone();
         std::thread::spawn(move || read_write::dd_write(options_send,rx))
     };
 
-    read_write::dd_read(o,tx);
+    read_write::dd_read(o.clone(),tx);
     drop(write_thread.join());
+
+    if o.status != Status::NoXFer {
+        eprintln!("{}", STATE);
+    }
 }
 
+fn sigint() {
+    eprintln!("{}",STATE);
+    std::process::exit(6);
+}
 
+fn sigusr1() {
+    eprintln!("{}", STATE);
+}
 
 #[derive(Debug, Clone)]
 pub struct Options {
