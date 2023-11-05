@@ -51,6 +51,9 @@ struct GlobalState {
 
     write_blk: AtomicUsize,
     write_extra: AtomicBool,
+    // this should ever be poisoned. it is only locked by the main thread and during an interrupt.
+    started: std::sync::RwLock<Option<std::time::SystemTime>>,
+    bytes_written: AtomicUsize,
 }
 
 impl GlobalState {
@@ -61,7 +64,45 @@ impl GlobalState {
             read_extra: AtomicBool::new(false),
             write_blk: AtomicUsize::new(0),
             write_extra: AtomicBool::new(false),
+            started: std::sync::RwLock::new(None),
+            bytes_written: AtomicUsize::new(0),
         }
+    }
+
+    fn cfg_time(&self) {
+        *self.started.write().unwrap() = Some(std::time::SystemTime::now())
+    }
+}
+
+impl Display for GlobalState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}+{} records in", self.read_blk.load(std::sync::atomic::Ordering::Relaxed), self.read_extra.load(std::sync::atomic::Ordering::Relaxed) as u8)?;
+        writeln!(f, "{}+{} records out" , self.write_blk.load(std::sync::atomic::Ordering::Relaxed), self.write_extra.load(std::sync::atomic::Ordering::Relaxed) as u8)?;
+        let bytes = self.bytes_written.load(std::sync::atomic::Ordering::Relaxed);
+        write!(f, "{bytes} bytes copied")?;
+
+        if let Ok(d) = self.started.read().unwrap().unwrap().elapsed() {
+            let mins = d.as_secs_f64() / 60f64;
+            let hrs = d.as_secs_f64() / 60f64.powi(2);
+            if hrs > 1.0 {
+                write!(f, ", {hrs:.3} h")?;
+            } else if mins > 1.0 {
+                write!(f, ", {mins:.3} m")?;
+            } else {
+                write!(f, ", {:.3} s", d.as_secs_f64())?;
+            }
+
+            let bps = self.bytes_written.load(std::sync::atomic::Ordering::Relaxed) as f64 / d.as_secs_f64();
+            let (bps, unit) = match bps {
+                b if b > 1024f64.powi(4) => ( b/1024f64.powi(4), "TiB/s"),
+                b if b > 1024f64.powi(3) => ( b/1024f64.powi(3), "GiB/s"),
+                b if b > 1024f64.powi(2) => ( b/1024f64.powi(2), "MiB/s"),
+                b => (b/1024f64, "KiB/s"),
+            };
+
+            write!(f, ", {bps},{unit}")?;
+        }
+        writeln!(f,"")
     }
 }
 
@@ -328,7 +369,7 @@ impl Options {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum Status {
     Default,
     NoXFer,

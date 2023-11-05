@@ -56,6 +56,7 @@ pub fn dd_write(opts: Options, rx: std::sync::mpsc::Receiver<Box<[u8]>>) {
         super::STATE.queued.fetch_sub(1,std::sync::atomic::Ordering::Relaxed);
         let len: usize = blk.len();
         let rc = f.write(&*blk).unwrap_or_else(|e| super::handle_err(e,&format!("in file {:?}",opts.o_f), 0x21));
+        super::STATE.bytes_written.fetch_add(blk.len(), core::sync::atomic::Ordering::Relaxed);
 
         //eprintln!("w: {:x?}",blk);
 
