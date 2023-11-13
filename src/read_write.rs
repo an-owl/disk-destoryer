@@ -29,8 +29,6 @@ pub fn dd_read(opts: Options, tx: std::sync::mpsc::Sender<Box<[u8]>>) {
         let r_len = f.read(&mut b).unwrap_or_else(|e| super::handle_err(e,&format!("in file {}",opts.i_f),0x21));
         b.truncate(r_len);
 
-        //eprintln!("r: {b:x?}");
-
         queue.push(core::mem::replace(&mut b,new_buff(opts.i_bs)));
 
         // incomplete read is exit condition
