@@ -8,10 +8,10 @@ static STATE: GlobalState = GlobalState::new();
 
 // rc's
 // 0x0?: See Options::new
-// 0x06: received int
 // 0x1?: FS problem
 // 0x2?: IO problem see read_write
 // 0x3?: Config Error
+// 0x130: sigint
 
 mod io;
 mod read_write;
@@ -41,7 +41,7 @@ fn main() {
 
 fn sigint() {
     eprintln!("{}",STATE);
-    std::process::exit(6);
+    std::process::exit(130);
 }
 
 fn sigusr1() {
