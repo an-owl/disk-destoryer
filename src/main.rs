@@ -97,7 +97,20 @@ impl Display for GlobalState {
         writeln!(f, "{}+{} records in", self.read_blk.load(std::sync::atomic::Ordering::Relaxed), self.read_extra.load(std::sync::atomic::Ordering::Relaxed) as u8)?;
         writeln!(f, "{}+{} records out" , self.write_blk.load(std::sync::atomic::Ordering::Relaxed), self.write_extra.load(std::sync::atomic::Ordering::Relaxed) as u8)?;
         let bytes = self.bytes_written.load(std::sync::atomic::Ordering::Relaxed);
-        write!(f, "{bytes} bytes copied")?;
+
+        if let Some((pow, unit)) = match bytes as f64 {
+            f if f/1024f64.powi(4) > 1f64 => Some((4,'T')),
+            f if f/1024f64.powi(3) > 1f64 => Some((3,'G')),
+            f if f/1024f64.powi(2) > 1f64 => Some((2,'M')),
+            f if f/1024f64 > 1f64 => Some((1,'K')),
+            _ => None,
+        } {
+            write!(f,"{bytes} bytes ({pow2:.1}{unit}iB {pow10:.1}{unit}B)", pow2 = (bytes as f64)/1024f64.powi(pow), pow10 = (bytes as f64)/1000f64.powi(pow))?;
+        } else {
+            write!(f, "{bytes} bytes copied")?;
+        }
+
+
 
         if let Ok(d) = self.started.read().unwrap().unwrap().elapsed() {
             let mins = d.as_secs_f64() / 60f64;
@@ -118,7 +131,7 @@ impl Display for GlobalState {
                 b => (b/1024f64, "KiB/s"),
             };
 
-            write!(f, ", {bps},{unit}")?;
+            write!(f, ", {bps:.2}{unit}")?;
         }
         writeln!(f,"")
     }
